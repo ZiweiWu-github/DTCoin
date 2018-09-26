@@ -3,11 +3,13 @@ import java.io.FileOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
+import javax.swing.JOptionPane;
+
 public class DTCoinMain {
 	private static String fileName = "coin.dat";
 	private static CoinInfo coinInfo;
 	
-	public static void main(String[] args) {
+	public static void main(String[] args) throws InterruptedException{
 		try {
 			FileInputStream file = new FileInputStream(fileName);
 			ObjectInputStream stream = new ObjectInputStream(file);
@@ -16,8 +18,11 @@ public class DTCoinMain {
 		} catch (Exception e) {
 			coinInfo = new CoinInfo();
 		}
-		
 		DTCoinModel m = new DTCoinModel(coinInfo);
+		Thread t= new Thread(m);
+		
+		m.Start();
+		t.start();
 	}
 	
 	public static void close() {
@@ -27,7 +32,8 @@ public class DTCoinMain {
 			stream.writeObject(coinInfo);
 			stream.close();
 		} catch (Exception e) {
-			e.printStackTrace();
+			JOptionPane.showConfirmDialog(null, e.toString(), "Error!", JOptionPane.OK_CANCEL_OPTION, 
+					JOptionPane.INFORMATION_MESSAGE);
 		}
 	}
 }
