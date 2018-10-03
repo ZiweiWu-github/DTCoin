@@ -16,9 +16,12 @@ public final class DTCoinModel implements Runnable {
 	private ArrayList<ChangeListener> listeners = new ArrayList<ChangeListener>();
 	private DTCoinStatus status = DTCoinStatus.PAUSED;
 	private boolean isRunning = true;
+	private Object lockObject = new Object();
 
 	public DTCoinModel(CoinInfo coinInfo) {
 		this.coinInfo = coinInfo;
+		this.nanoSecRemainingUntilSecond = this.coinInfo.getNanoSecRemainingUntilSecond();
+		this.numSecs = this.coinInfo.getNumSecs();
 	}
 
 	/*
@@ -28,8 +31,28 @@ public final class DTCoinModel implements Runnable {
 		return this.coinInfo;
 	}
 
-	public int getSecondsRemaining() {
-		return this.secsPer15Min - this.numSecs;
+	/**
+	 * Returns a string representing the amount of time left before the Lord graces
+	 * you with an imaginary coin of which is worth absolutely nothing.
+	 * @return Time left as a String
+	 */
+	public String getRemainingTime() {
+		int secsRemaining = this.secsPer15Min - this.numSecs;
+		int minutes = secsRemaining/60;
+		int seconds = secsRemaining%60;
+		String s = "";
+		if(minutes == 1) {
+			s += minutes + " Minute ";
+		}else {
+			s += minutes + " Minutes ";
+		}
+		if(seconds == 1) {
+			s += seconds + " Second";
+		}
+		else {
+			s += seconds + " Seconds";
+		}
+		return s;
 	}
 	
 	public DTCoinStatus getDTCoinStatus() {
@@ -37,15 +60,11 @@ public final class DTCoinModel implements Runnable {
 	}
 	
 	/*
-	 * Below methods are to add/remove/inform change listeners
+	 * Below methods are to add/inform change listeners
 	 */
 	
 	public void addChangeListener(ChangeListener c) {
 		this.listeners.add(c);
-	}
-	
-	public void removeChangeListener(ChangeListener c) {
-		this.listeners.remove(c);
 	}
 	
 	public void informListeners() {
@@ -59,35 +78,62 @@ public final class DTCoinModel implements Runnable {
 	 * Below methods are to stop/start/pause/resume the counting
 	 */
 
-	
+	//Pauses the counting
 	public void Pause() {
 		count = false;
 		this.status = DTCoinStatus.PAUSED;
 		this.informListeners();
-	}	
+	}
 	
+	/**
+	 * For use with the frame closing -- stops counting but
+	 * without informing the change listeners.
+	 */
+	public void PauseWithoutListeners() {
+		count = false;
+	}
+	
+	/*
+	 * Stops the run() method by setting isRunning to false
+	 * Then saves info into coinInfo
+	 * The notify is to be able to exit when the run() is waiting
+	 */
 	public void Stop() {
-		this.isRunning = false;
-		this.status = DTCoinStatus.PAUSED;
-		this.coinInfo.setNanoSecRemainingUntilSecond(this.nanoSecRemainingUntilSecond);
-		this.coinInfo.setNumSecs(this.numSecs);
+		synchronized (lockObject) {
+			this.isRunning = false;
+			this.coinInfo.setNanoSecRemainingUntilSecond(this.nanoSecRemainingUntilSecond);
+			this.coinInfo.setNumSecs(this.numSecs);
+			DTCoinMain.close();
+			this.lockObject.notifyAll();
+		}
+		
 	}
 	
-	public void Start() {
-		this.isRunning = true;
-		this.count = false;
-		this.status = DTCoinStatus.PAUSED;
-		this.nanoSecRemainingUntilSecond = this.coinInfo.getNanoSecRemainingUntilSecond();
-		this.numSecs = this.coinInfo.getNumSecs();
-		this.informListeners();
+	
+	/*
+	 * Resumes the counting and notifies all who are waiting on this instance
+	 */
+	public void Resume() {
+		synchronized (lockObject) {
+			this.startTime = System.nanoTime();
+			this.count = true;
+			this.status = DTCoinStatus.COUNTING;
+			this.informListeners();
+			this.lockObject.notifyAll();
+		}
 	}
 	
-	public synchronized void Resume() {
-		this.startTime = System.nanoTime();
-		this.count = true;
-		this.status = DTCoinStatus.COUNTING;
-		this.notifyAll();
-		this.informListeners();
+	/**
+	 * For use with the frame closing. Resumes the counting without having to
+	 * inform the change listeners.
+	 */
+	public void ResumeWithoutListeners() {
+		synchronized (lockObject) {
+			this.startTime = System.nanoTime();
+			this.count = true;
+			this.status = DTCoinStatus.COUNTING;
+			this.lockObject.notifyAll();
+		}
 	}
 
 	
@@ -98,13 +144,13 @@ public final class DTCoinModel implements Runnable {
 	@Override
 	public void run() {
 		while (this.isRunning) {
-			synchronized (this) {
+			synchronized (this.lockObject) {
 				if(!this.isRunning) {
 					break;
 				}
 				if (!count) {
 					try {
-						this.wait();
+						this.lockObject.wait();
 					} catch (InterruptedException e) {
 						break;
 					}

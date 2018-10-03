@@ -3,7 +3,6 @@ import java.io.FileOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
-import javax.swing.JOptionPane;
 
 public class DTCoinMain {
 	private static String fileName = "coin.dat";
@@ -19,9 +18,10 @@ public class DTCoinMain {
 			coinInfo = new CoinInfo();
 		}
 		DTCoinModel m = new DTCoinModel(coinInfo);
+		DTCoinFrame frame = new DTCoinFrame(m);
+		frame.refresh();
 		Thread t= new Thread(m);
 		
-		m.Start();
 		t.start();
 	}
 	
@@ -32,8 +32,6 @@ public class DTCoinMain {
 			stream.writeObject(coinInfo);
 			stream.close();
 		} catch (Exception e) {
-			JOptionPane.showConfirmDialog(null, e.toString(), "Error!", JOptionPane.OK_CANCEL_OPTION, 
-					JOptionPane.INFORMATION_MESSAGE);
 		}
 	}
 }
